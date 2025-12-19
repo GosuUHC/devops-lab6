@@ -1,0 +1,55 @@
+# Stage 1: Сборка и установка Kafka
+FROM ubuntu:22.04 AS builder
+
+RUN apt-get update && apt-get install -y \
+    openjdk-11-jdk-headless \
+    curl \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV KAFKA_VERSION=3.4.0
+ENV SCALA_VERSION=2.13
+
+# Скачивание и распаковка Kafka
+RUN wget -q https://archive.apache.org/dist/kafka/${KAFKA_VERSION}/kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz && \
+    tar xzf kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz -C /opt/ && \
+    ln -s /opt/kafka_${SCALA_VERSION}-${KAFKA_VERSION} /opt/kafka && \
+    rm kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz
+
+# Stage 2: Финальный оптимизированный образ
+FROM eclipse-temurin:11-jre
+
+# Установка только необходимых runtime зависимостей
+RUN apt-get update && apt-get install -y \
+    curl \
+    netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Копирование Kafka из builder stage
+COPY --from=builder /opt/kafka /opt/kafka
+
+# Настройка переменных окружения
+ENV JAVA_HOME=/opt/java/openjdk
+ENV KAFKA_HOME=/opt/kafka
+ENV PATH=$PATH:$KAFKA_HOME/bin
+
+# Оптимизация для контейнеров
+ENV KAFKA_HEAP_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+
+# Создание директорий для логов
+RUN mkdir -p /tmp/kafka-logs
+
+# Копирование скрипта запуска
+COPY kafka-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/kafka-entrypoint.sh
+
+WORKDIR /opt/kafka
+
+EXPOSE 9092 9093
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1
+
+CMD ["/usr/local/bin/kafka-entrypoint.sh"]
+

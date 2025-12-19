@@ -1,0 +1,53 @@
+# Stage 1: Сборка зависимостей Python
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+
+# Установка build зависимостей
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Копирование requirements.txt
+COPY requirements-model-server.txt /build/requirements.txt
+
+# Установка Python зависимостей в отдельную директорию
+RUN pip install --no-cache-dir --target=/build/python-packages -r requirements.txt
+
+# Stage 2: Финальный оптимизированный образ
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Установка только runtime зависимостей
+RUN apt-get update && apt-get install -y \
+    libgomp1 \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Копирование Python пакетов из builder stage
+COPY --from=builder /build/python-packages /usr/local/lib/python3.11/site-packages
+
+# Копирование кода приложения
+COPY model-server/ /app/
+
+# Создание директорий для моделей и данных
+RUN mkdir -p /app/models /app/data && \
+    chmod -R 755 /app
+
+# Настройка переменных окружения
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/usr/local/lib/python3.11/site-packages:/app \
+    MODEL_PATH=/app/models
+
+EXPOSE 8000
+
+# Healthcheck для проверки работоспособности
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+

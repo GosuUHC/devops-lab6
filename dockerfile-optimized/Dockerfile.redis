@@ -1,0 +1,29 @@
+# Оптимизированный Dockerfile для Redis (Feature Store)
+# Используем alpine для минимального размера образа
+FROM redis:7.2-alpine
+
+# Установка дополнительных утилит для мониторинга
+RUN apk add --no-cache \
+    curl \
+    tzdata \
+    && rm -rf /var/cache/apk/*
+
+# Копирование конфигурации Redis
+COPY redis.conf /etc/redis/redis.conf
+
+# Настройка прав доступа
+RUN chown redis:redis /etc/redis/redis.conf
+
+# Переменные окружения для оптимизации памяти
+ENV MAXMEMORY_POLICY=allkeys-lru \
+    MAXMEMORY=512mb
+
+# Healthcheck для проверки работоспособности
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD redis-cli ping | grep -q PONG || exit 1
+
+EXPOSE 6379
+
+# Запуск Redis с конфигурацией
+CMD ["redis-server", "/etc/redis/redis.conf"]
+

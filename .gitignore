@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Docker
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data
+*.csv
+*.parquet
+!data/*.csv
+!data/*.parquet
+
+# Models
+*.pkl
+*.onnx
+*.h5
+*.pb
+
+# Checkpoints
+checkpoints/
+checkpoint-data/
+

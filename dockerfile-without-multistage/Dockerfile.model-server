@@ -1,0 +1,40 @@
+# Dockerfile БЕЗ многоступенчатой сборки (для сравнения)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Установка всех зависимостей (включая build-зависимости)
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libgomp1 \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Копирование requirements.txt
+COPY requirements-model-server.txt /app/requirements.txt
+
+# Установка Python зависимостей
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Копирование кода приложения
+COPY model-server/ /app/
+
+# Создание директорий для моделей и данных
+RUN mkdir -p /app/models /app/data && \
+    chmod -R 755 /app
+
+# Настройка переменных окружения
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    MODEL_PATH=/app/models
+
+EXPOSE 8000
+
+# Healthcheck для проверки работоспособности
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+

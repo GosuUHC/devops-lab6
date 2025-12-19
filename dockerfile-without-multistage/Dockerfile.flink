@@ -1,0 +1,41 @@
+# Dockerfile БЕЗ многоступенчатой сборки (для сравнения)
+FROM flink:1.19.0-scala_2.12-java11
+
+# Установка системных зависимостей
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-dev \
+    libgomp1 \
+    netcat-openbsd \
+    wget \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Установка Python зависимостей
+COPY requirements-flink.txt /tmp/requirements-flink.txt
+RUN pip3 install --no-cache-dir -r /tmp/requirements-flink.txt
+
+# Скачивание необходимых JAR файлов для Kafka connector
+RUN mkdir -p /opt/flink/lib && \
+    cd /opt/flink/lib && \
+    wget -q https://repo1.maven.org/maven2/org/apache/flink/flink-sql-connector-kafka/3.2.0-1.19/flink-sql-connector-kafka-3.2.0-1.19.jar && \
+    wget -q https://repo1.maven.org/maven2/org/apache/flink/flink-json/1.19.0/flink-json-1.19.0.jar
+
+# Настройка переменных окружения для оптимизации контейнеров
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0" \
+    JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0" \
+    PYFLINK_CLIENT_EXECUTABLE=/usr/bin/python3 \
+    PYFLINK_EXECUTABLE=/usr/bin/python3 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/opt/flink/python-packages:${PYTHONPATH}
+
+# Создание рабочей директории
+WORKDIR /opt/flink
+
+# Healthcheck для проверки работоспособности
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD nc -z localhost 8081 || exit 1
+
+EXPOSE 8081 6123
+

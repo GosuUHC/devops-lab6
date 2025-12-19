@@ -98,13 +98,16 @@ services:
     environment:
       FLINK_PROPERTIES: |
         jobmanager.rpc.address: flink-jobmanager
+        jobmanager.memory.process.size: 4096m
         state.backend: hashmap
         state.checkpoints.dir: file:///opt/flink/checkpoints
         state.savepoints.dir: file:///opt/flink/savepoints
         python.client.executable: /usr/bin/python3
         python.executable: /usr/bin/python3
+        parallelism.default: 8
     volumes:
       - flink-checkpoints:/opt/flink/checkpoints
+      - flink-savepoints:/opt/flink/savepoints
     networks:
       - bigdata-network
     depends_on:
@@ -123,24 +126,28 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   flink-taskmanager:
     build:
       context: .
       dockerfile: dockerfile-optimized/Dockerfile.flink
-    container_name: flink-taskmanager
     command: taskmanager
     depends_on:
-      - flink-jobmanager
+      flink-jobmanager:
+        condition: service_healthy
     environment:
       FLINK_PROPERTIES: |
         jobmanager.rpc.address: flink-jobmanager
-        taskmanager.numberOfTaskSlots: 2
+        taskmanager.memory.process.size: 8192m
+        taskmanager.numberOfTaskSlots: 4
         state.backend: hashmap
+        state.checkpoints.dir: file:///opt/flink/checkpoints
         python.client.executable: /usr/bin/python3
         python.executable: /usr/bin/python3
     volumes:
       - flink-checkpoints:/opt/flink/checkpoints
+      - flink-taskmanager-state:/opt/flink/state
     networks:
       - bigdata-network
     deploy:
@@ -151,12 +158,12 @@ services:
         reservations:
           cpus: "4"
           memory: 8G
-      replicas: 1
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "6123"]
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   model-server:
     build:
@@ -199,5 +206,11 @@ networks:
 
 volumes:
   redis-data:
+    driver: local
   flink-checkpoints:
+    driver: local
+  flink-savepoints:
+    driver: local
+  flink-taskmanager-state:
+    driver: local
 

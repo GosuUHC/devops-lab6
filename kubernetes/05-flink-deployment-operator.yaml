@@ -1,0 +1,54 @@
+# Альтернативный вариант с использованием Flink Operator (если установлен)
+# Для использования этого манифеста необходимо установить Flink Operator:
+# kubectl apply -f https://github.com/apache/flink-kubernetes-operator/releases/download/release-1.5.0/flink-kubernetes-operator-1.5.0.yaml
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: flink-production
+  namespace: bigdata
+spec:
+  image: flink:1.19.0-scala_2.12
+  flinkVersion: v1_19
+  flinkConfiguration:
+    taskmanager.numberOfTaskSlots: "4"
+    parallelism.default: "8"
+    state.backend: hashmap
+    state.checkpoints.dir: file:///opt/flink/checkpoints
+    state.savepoints.dir: file:///opt/flink/savepoints
+  jobManager:
+    resource:
+      memory: "4096m"
+      cpu: 2
+    replicas: 1
+  taskManager:
+    resource:
+      memory: "8192m"
+      cpu: 4
+    replicas: 4
+    podTemplate:
+      spec:
+        affinity:
+          podAntiAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - flink
+                topologyKey: "kubernetes.io/hostname"
+        tolerations:
+          - key: "spot"
+            operator: "Equal"
+            value: "true"
+            effect: "NoSchedule"
+  job:
+    jarURI: local:///opt/flink/examples/streaming/WindowJoin.jar
+    parallelism: 8
+    upgradeMode: stateless
+    # Для stateful режима:
+    # upgradeMode: stateful
+    # savepointPath: "file:///opt/flink/savepoints/savepoint-123456"
+
+
+

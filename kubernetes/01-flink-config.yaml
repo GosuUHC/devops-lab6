@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flink-config
+  namespace: bigdata
+data:
+  flink-conf.yaml: |
+    jobmanager.rpc.address: flink-jobmanager
+    jobmanager.rpc.port: 6123
+    jobmanager.memory.process.size: 4096m
+    taskmanager.memory.process.size: 8192m
+    taskmanager.numberOfTaskSlots: 4
+    parallelism.default: 8
+    state.backend: hashmap
+    state.checkpoints.dir: file:///opt/flink/checkpoints
+    state.savepoints.dir: file:///opt/flink/savepoints
+    state.savepoint.default.savepoint.path: file:///opt/flink/savepoints
+    python.client.executable: /usr/bin/python3
+    python.executable: /usr/bin/python3
+    metrics.reporters: prom
+    metrics.reporter.prom.class: org.apache.flink.metrics.prometheus.PrometheusReporter
+    metrics.reporter.prom.port: 9250
+    metrics.reporter.prom.host: 0.0.0.0
+
+
+

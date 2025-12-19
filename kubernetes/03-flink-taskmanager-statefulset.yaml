@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: flink-taskmanager
+  namespace: bigdata
+spec:
+  serviceName: flink-taskmanager
+  replicas: 4
+  selector:
+    matchLabels:
+      app: flink
+      component: taskmanager
+  template:
+    metadata:
+      labels:
+        app: flink
+        component: taskmanager
+        instance-type: spot
+    spec:
+      # Pod Anti-Affinity для распределения task managers по разным узлам
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - flink
+                  - key: component
+                    operator: In
+                    values:
+                      - taskmanager
+              topologyKey: "kubernetes.io/hostname"
+      # Tolerations для spot instances (cost optimization)
+      tolerations:
+        - key: "spot"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      # Node selector для spot instances (опционально)
+      # nodeSelector:
+      #   node-type: spot
+      containers:
+        - name: taskmanager
+          image: flink:1.19.0-scala_2.12
+          imagePullPolicy: IfNotPresent
+          command: ["/docker-entrypoint.sh"]
+          args: ["taskmanager"]
+          ports:
+            - containerPort: 6121
+              name: data
+            - containerPort: 6122
+              name: rpc
+            - containerPort: 9250
+              name: metrics
+          env:
+            - name: JOB_MANAGER_RPC_ADDRESS
+              value: "flink-jobmanager"
+          volumeMounts:
+            - name: flink-config
+              mountPath: /opt/flink/conf/flink-conf.yaml
+              subPath: flink-conf.yaml
+            - name: flink-storage
+              mountPath: /opt/flink/state
+            - name: flink-checkpoints
+              mountPath: /opt/flink/checkpoints
+          resources:
+            requests:
+              memory: "8Gi"
+              cpu: "4"
+            limits:
+              memory: "16Gi"
+              cpu: "8"
+      volumes:
+        - name: flink-config
+          configMap:
+            name: flink-config
+        - name: flink-checkpoints
+          emptyDir: {}
+  # Persistent Volume Claims для stateful storage
+  volumeClaimTemplates:
+    - metadata:
+        name: flink-storage
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: "standard"
+        resources:
+          requests:
+            storage: 30Gi
+
+
+

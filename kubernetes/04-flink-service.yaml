@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: flink-taskmanager
+  namespace: bigdata
+spec:
+  clusterIP: None
+  selector:
+    app: flink
+    component: taskmanager
+  ports:
+    - port: 6121
+      name: data
+    - port: 6122
+      name: rpc
+
+
+

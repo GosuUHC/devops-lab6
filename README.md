@@ -57,3 +57,9 @@ python compare_image_sizes.py
 | flink-jobmanager | 2.87 | 8.86 | 362.8MiB / 4GiB |
 | flink-taskmanager | 0.58 | 5.02 | 392.7MiB / 7.645GiB |
 | model-server | 0.11 | 1.97 | 40.32MiB / 2GiB |
+
+Для запуска kind
+
+```bash
+./scripts/deploy_k8s.sh
+```

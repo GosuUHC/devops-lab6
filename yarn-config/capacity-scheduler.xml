@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<configuration>
+  <!-- Настройка очередей для управления ресурсами кластера -->
+  <property>
+    <name>yarn.scheduler.capacity.root.queues</name>
+    <value>default,etl,ml</value>
+  </property>
+
+  <!-- Распределение ресурсов между очередями -->
+  <property>
+    <name>yarn.scheduler.capacity.root.default.capacity</name>
+    <value>10</value>
+  </property>
+
+  <property>
+    <name>yarn.scheduler.capacity.root.etl.capacity</name>
+    <value>60</value>
+  </property>
+
+  <property>
+    <name>yarn.scheduler.capacity.root.ml.capacity</name>
+    <value>30</value>
+  </property>
+
+  <!-- Максимальная емкость очередей (могут использовать больше при наличии свободных ресурсов) -->
+  <property>
+    <name>yarn.scheduler.capacity.root.default.maximum-capacity</name>
+    <value>100</value>
+  </property>
+
+  <property>
+    <name>yarn.scheduler.capacity.root.etl.maximum-capacity</name>
+    <value>100</value>
+  </property>
+
+  <property>
+    <name>yarn.scheduler.capacity.root.ml.maximum-capacity</name>
+    <value>100</value>
+  </property>
+
+  <!-- Пользователи могут использовать очередь -->
+  <property>
+    <name>yarn.scheduler.capacity.root.default.user-limit-factor</name>
+    <value>1</value>
+  </property>
+
+  <property>
+    <name>yarn.scheduler.capacity.root.etl.user-limit-factor</name>
+    <value>1</value>
+  </property>
+
+  <property>
+    <name>yarn.scheduler.capacity.root.ml.user-limit-factor</name>
+    <value>1</value>
+  </property>
+</configuration>

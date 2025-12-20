@@ -5,7 +5,7 @@ metadata:
   namespace: bigdata
 spec:
   serviceName: flink-taskmanager
-  replicas: 4
+  replicas: 2
   selector:
     matchLabels:
       app: flink
@@ -32,15 +32,18 @@ spec:
                     values:
                       - taskmanager
               topologyKey: "kubernetes.io/hostname"
-      # Tolerations для spot instances (cost optimization)
+      # Node selector для spot instances (cost optimization - снижение затрат на 60-70%)
+      nodeSelector:
+        node-type: spot
+        # Оптимизация размера инстанса в зависимости от типа задачи
+        # Для CPU-bound задач используем compute-optimized инстансы
+        instance-family: compute-optimized
+      # Tolerations для spot instances
       tolerations:
         - key: "spot"
           operator: "Equal"
           value: "true"
           effect: "NoSchedule"
-      # Node selector для spot instances (опционально)
-      # nodeSelector:
-      #   node-type: spot
       containers:
         - name: taskmanager
           image: flink:1.19.0-scala_2.12
@@ -67,11 +70,11 @@ spec:
               mountPath: /opt/flink/checkpoints
           resources:
             requests:
-              memory: "8Gi"
-              cpu: "4"
+              memory: "2Gi"
+              cpu: "1"
             limits:
-              memory: "16Gi"
-              cpu: "8"
+              memory: "4Gi"
+              cpu: "2"
       volumes:
         - name: flink-config
           configMap:

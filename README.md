@@ -63,3 +63,23 @@ python compare_image_sizes.py
 ```bash
 ./scripts/deploy_k8s.sh
 ```
+
+### [YARN конфигурация](yarn-config/capacity-scheduler.xml)
+
+#### [Dynamic allocation для Flink](kubernetes/01-flink-config.yaml)
+
+```bash
+# Проверить все конфигурации Части 3
+python scripts/check_part3.py
+```
+
+Использование ресурсов без dynamic allocations:
+
+- CPU: 170m 
+- RAM: 1221Mi
+
+Использование ресурсов с dynamic allocations:
+
+- CPU: 113m
+- RAM: 1008Mi
+

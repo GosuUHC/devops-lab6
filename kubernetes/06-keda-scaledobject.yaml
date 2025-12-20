@@ -1,0 +1,20 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: flink-taskmanager-scaledobject
+  namespace: bigdata
+spec:
+  scaleTargetRef:
+    kind: StatefulSet
+    name: flink-taskmanager
+  minReplicaCount: 1
+  maxReplicaCount: 5
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka:9092
+        consumerGroup: flink-group
+        topic: hospital-readmissions
+        lagThreshold: "1000"
+        activationLagThreshold: "100"
+

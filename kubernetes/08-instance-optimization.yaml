@@ -1,0 +1,192 @@
+# Конфигурация для оптимизации размеров инстансов
+# Уникальное требование: Снизить затраты на обработку на 35% через правильные размеры инстансов
+# Стратегия: Выбор оптимальных типов инстансов в зависимости от типа задачи
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: instance-optimization-config
+  namespace: bigdata
+  labels:
+    app: cost-optimization
+data:
+  # Конфигурация для CPU-bound задач (ETL, трансформации данных)
+  cpu-bound-config.yaml: |
+    nodeSelector:
+      node.kubernetes.io/instance-type: c5.2xlarge  # Compute-optimized: 8 vCPU, 16GB RAM
+      workload-type: cpu-bound
+    resources:
+      requests:
+        cpu: "4"
+        memory: "8Gi"
+      limits:
+        cpu: "8"
+        memory: "16Gi"
+    # Использование spot для экономии до 70%
+    tolerations:
+      - key: "spot"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+    # Экономия: c5.2xlarge spot ~$0.15/час vs on-demand ~$0.34/час = 56% экономия
+
+  # Конфигурация для memory-bound задач (ML inference, feature engineering)
+  memory-bound-config.yaml: |
+    nodeSelector:
+      node.kubernetes.io/instance-type: r5.xlarge  # Memory-optimized: 4 vCPU, 32GB RAM
+      workload-type: memory-bound
+    resources:
+      requests:
+        cpu: "2"
+        memory: "16Gi"
+      limits:
+        cpu: "4"
+        memory: "32Gi"
+    tolerations:
+      - key: "spot"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+    # Экономия: r5.xlarge spot ~$0.10/час vs on-demand ~$0.252/час = 60% экономия
+
+  # Конфигурация для balanced задач (общая обработка)
+  balanced-config.yaml: |
+    nodeSelector:
+      node.kubernetes.io/instance-type: m5.large  # General purpose: 2 vCPU, 8GB RAM
+      workload-type: balanced
+    resources:
+      requests:
+        cpu: "1"
+        memory: "4Gi"
+      limits:
+        cpu: "2"
+        memory: "8Gi"
+    tolerations:
+      - key: "spot"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+    # Экономия: m5.large spot ~$0.04/час vs on-demand ~$0.096/час = 58% экономия
+
+  # Конфигурация для control-plane (JobManager) - всегда on-demand для стабильности
+  control-plane-config.yaml: |
+    nodeSelector:
+      node-type: on-demand
+      instance-type: m5.xlarge  # General purpose: 4 vCPU, 16GB RAM
+    resources:
+      requests:
+        cpu: "2"
+        memory: "4Gi"
+      limits:
+        cpu: "4"
+        memory: "8Gi"
+    tolerations:
+      - key: "on-demand"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+
+---
+# Применение оптимизации к Flink TaskManager на основе типа задачи
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: flink-taskmanager-optimized
+  namespace: bigdata
+spec:
+  serviceName: flink-taskmanager
+  replicas: 4
+  selector:
+    matchLabels:
+      app: flink
+      component: taskmanager
+      optimization: enabled
+  template:
+    metadata:
+      labels:
+        app: flink
+        component: taskmanager
+        optimization: enabled
+        instance-type: spot
+    spec:
+      # Динамический выбор инстанса на основе метрик нагрузки
+      # CPU-bound задачи -> c5.2xlarge
+      # Memory-bound задачи -> r5.xlarge
+      # Balanced задачи -> m5.large
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - flink
+                  - key: component
+                    operator: In
+                    values:
+                      - taskmanager
+              topologyKey: "kubernetes.io/hostname"
+      nodeSelector:
+        node-type: spot
+        # По умолчанию используем balanced для большинства задач
+        workload-type: balanced
+      tolerations:
+        - key: "spot"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      containers:
+        - name: taskmanager
+          image: flink:1.19.0-scala_2.12
+          imagePullPolicy: IfNotPresent
+          command: ["/docker-entrypoint.sh"]
+          args: ["taskmanager"]
+          ports:
+            - containerPort: 6121
+              name: data
+            - containerPort: 6122
+              name: rpc
+            - containerPort: 9250
+              name: metrics
+          env:
+            - name: JOB_MANAGER_RPC_ADDRESS
+              value: "flink-jobmanager"
+          volumeMounts:
+            - name: flink-config
+              mountPath: /opt/flink/conf/flink-conf.yaml
+              subPath: flink-conf.yaml
+            - name: flink-storage
+              mountPath: /opt/flink/state
+            - name: flink-checkpoints
+              mountPath: /opt/flink/checkpoints
+            - name: instance-optimization-config
+              mountPath: /etc/flink/instance-config
+          resources:
+            # Оптимизированные ресурсы для balanced задач
+            # Для CPU-bound: увеличить CPU, для memory-bound: увеличить память
+            requests:
+              memory: "8Gi"
+              cpu: "2"
+            limits:
+              memory: "16Gi"
+              cpu: "4"
+      volumes:
+        - name: flink-config
+          configMap:
+            name: flink-config
+        - name: flink-checkpoints
+          emptyDir: {}
+        - name: instance-optimization-config
+          configMap:
+            name: instance-optimization-config
+  volumeClaimTemplates:
+    - metadata:
+        name: flink-storage
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: "standard"
+        resources:
+          requests:
+            storage: 30Gi
+

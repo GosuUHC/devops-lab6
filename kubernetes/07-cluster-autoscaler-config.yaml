@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-autoscaler-config
+  namespace: kube-system
+  labels:
+    app: cluster-autoscaler
+data:
+  config: |
+    # Время ожидания перед уменьшением масштаба неиспользуемых узлов
+    scaleDownUnneededTime: 30m
+    # Задержка после добавления узла перед началом уменьшения масштаба
+    scaleDownDelayAfterAdd: 15m
+    # Задержка после удаления узла перед началом уменьшения масштаба
+    scaleDownDelayAfterDelete: 5m
+    # Порог утилизации для уменьшения масштаба (50% означает, что узел считается неиспользуемым если загрузка < 50%)
+    scaleDownUtilizationThreshold: 0.5
+    # Максимальное количество узлов, которые могут быть удалены одновременно
+    maxNodeProvisionTime: 15m
+    # Максимальное количество узлов, которые могут быть добавлены одновременно
+    maxNodesTotal: 100
+    # Максимальное количество узлов, которые могут быть удалены одновременно
+    maxEmptyBulkDelete: 10
+    # Минимальное количество узлов в кластере
+    minNodes: 1
+    # Максимальное количество узлов в кластере
+    maxNodes: 50
+    # Время ожидания перед удалением узла с подом, который не может быть перемещен
+    scaleDownUnreadyTime: 20m
+    # Порог утилизации для увеличения масштаба
+    scaleUpUtilizationThreshold: 0.7
+

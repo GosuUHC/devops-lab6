@@ -38,8 +38,15 @@ spec:
         component: jobmanager
         instance-type: on-demand
     spec:
-      # Tolerations для control-plane nodes (если используется kind/minikube)
+      # Node selector для on-demand инстансов (JobManager должен быть стабильным)
+      nodeSelector:
+        node-type: on-demand
+      # Tolerations для on-demand инстансов
       tolerations:
+        - key: "on-demand"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
         - key: "node-role.kubernetes.io/control-plane"
           operator: "Exists"
           effect: "NoSchedule"

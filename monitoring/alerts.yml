@@ -1,0 +1,231 @@
+groups:
+  # Алерты для Flink (уровень приложения)
+  - name: flink_alerts
+    interval: 30s
+    rules:
+      - alert: FlinkJobManagerDown
+        expr: up{job="flink-jobmanager"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: flink
+        annotations:
+          summary: "Flink JobManager недоступен"
+          description: "Flink JobManager не отвечает более 1 минуты"
+
+      - alert: FlinkTaskManagerDown
+        expr: up{job="flink-taskmanager"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: flink
+        annotations:
+          summary: "Flink TaskManager недоступен"
+          description: "Flink TaskManager не отвечает более 1 минуты"
+
+      - alert: HighFlinkCheckpointDuration
+        expr: flink_jobmanager_job_lastCheckpointDuration > 60000
+        for: 5m
+        labels:
+          severity: warning
+          component: flink
+        annotations:
+          summary: "Высокая длительность checkpoint в Flink"
+          description: "Длительность checkpoint {{ $value }}ms превысила 60 секунд"
+
+      - alert: FlinkCheckpointFailures
+        expr: rate(flink_jobmanager_job_numberOfFailedCheckpoints[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          component: flink
+        annotations:
+          summary: "Ошибки checkpoint в Flink"
+          description: "Обнаружены ошибки checkpoint: {{ $value }} ошибок/сек"
+
+      - alert: HighFlinkLatency
+        expr: flink_taskmanager_job_task_operator_currentEmitEventTimeLag > 10000
+        for: 3m
+        labels:
+          severity: warning
+          component: flink
+        annotations:
+          summary: "Высокая задержка обработки в Flink"
+          description: "Задержка обработки {{ $value }}ms превысила 10 секунд"
+
+      - alert: HighFlinkBackpressure
+        expr: flink_taskmanager_job_task_backPressuredTimeMsPerSecond > 500
+        for: 5m
+        labels:
+          severity: warning
+          component: flink
+        annotations:
+          summary: "Высокий backpressure в Flink"
+          description: "Backpressure {{ $value }}ms/сек превысил 500ms/сек"
+
+      - alert: HighFlinkMemoryUsage
+        expr: flink_taskmanager_Status_JVM_Memory_Heap_Used / flink_taskmanager_Status_JVM_Memory_Heap_Max > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: flink
+        annotations:
+          summary: "Высокое использование памяти в Flink"
+          description: "Использование памяти {{ $value | humanizePercentage }} превысило 90%"
+
+  # Алерты для инфраструктуры
+  - name: infrastructure_alerts
+    interval: 30s
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: infrastructure
+        annotations:
+          summary: "Сервис недоступен"
+          description: "Сервис {{ $labels.job }} ({{ $labels.instance }}) недоступен более 1 минуты"
+
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(process_cpu_seconds_total[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "Высокая загрузка CPU"
+          description: "CPU загрузка {{ $value }}% превысила 80% на {{ $labels.instance }}"
+
+      - alert: HighMemoryUsage
+        expr: (process_resident_memory_bytes / 1024 / 1024 / 1024) > 8
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "Высокое использование памяти"
+          description: "Использование памяти {{ $value }}GB превысило 8GB на {{ $labels.instance }}"
+
+      - alert: HighDiskUsage
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.1
+        for: 5m
+        labels:
+          severity: critical
+          component: infrastructure
+        annotations:
+          summary: "Низкое свободное место на диске"
+          description: "Свободное место на диске {{ $value | humanizePercentage }} менее 10% на {{ $labels.instance }}"
+
+      - alert: HighNetworkLatency
+        expr: rate(node_network_receive_bytes_total[5m]) > 1000000000
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "Высокая сетевая нагрузка"
+          description: "Сетевая нагрузка {{ $value }} байт/сек превысила 1GB/сек"
+
+  # Алерты для качества данных
+  - name: data_quality_alerts
+    interval: 30s
+    rules:
+      - alert: HighDataDrift
+        expr: data_drift_score > 0.2
+        for: 5m
+        labels:
+          severity: critical
+          component: data-quality
+        annotations:
+          summary: "Высокий data drift"
+          description: "Data drift score {{ $value }} превысил порог 0.2"
+
+      - alert: DataDriftDetected
+        expr: data_drift_detected == 1
+        for: 5m
+        labels:
+          severity: warning
+          component: data-quality
+        annotations:
+          summary: "Обнаружен data drift"
+          description: "Data drift обнаружен: score = {{ $value }}"
+
+      - alert: SchemaComplianceFailure
+        expr: schema_compliance_failures_total > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: data-quality
+        annotations:
+          summary: "Ошибки соответствия схеме данных"
+          description: "Количество ошибок схемы: {{ $value }}"
+
+      - alert: HighLateDataRatio
+        expr: late_data_ratio > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: data-quality
+        annotations:
+          summary: "Высокая доля late-arriving данных"
+          description: "Доля late данных {{ $value | humanizePercentage }} превысила 10%"
+
+  # Алерты для Kafka
+  - name: kafka_alerts
+    interval: 30s
+    rules:
+      - alert: HighKafkaLag
+        expr: kafka_consumergroup_lag_sum > 1000
+        for: 5m
+        labels:
+          severity: critical
+          component: kafka
+        annotations:
+          summary: "Высокий lag в Kafka"
+          description: "Lag для {{ $labels.consumergroup }} превысил 1000 сообщений"
+
+      - alert: KafkaBrokerDown
+        expr: up{job="kafka"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: kafka
+        annotations:
+          summary: "Kafka брокер недоступен"
+          description: "Kafka брокер не отвечает более 1 минуты"
+
+  # Алерты для Model Server
+  - name: model_server_alerts
+    interval: 30s
+    rules:
+      - alert: ModelServerDown
+        expr: up{job="model-server"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: model-server
+        annotations:
+          summary: "Model Server недоступен"
+          description: "Model Server не отвечает более 1 минуты"
+
+      - alert: HighPredictionLatency
+        expr: histogram_quantile(0.99, rate(model_prediction_latency_seconds_bucket[5m])) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          component: model-server
+        annotations:
+          summary: "Высокая задержка предсказаний"
+          description: "p99 задержка предсказаний {{ $value }}s превысила 0.1s"
+
+      - alert: HighPredictionErrors
+        expr: rate(model_prediction_errors_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          component: model-server
+        annotations:
+          summary: "Высокий уровень ошибок предсказаний"
+          description: "Частота ошибок предсказаний {{ $value }} превысила 0.05 ошибок/сек"
+

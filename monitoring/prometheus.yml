@@ -1,0 +1,116 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'bigdata'
+    environment: 'production'
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  # Prometheus сам
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Инфраструктурный уровень: Kubernetes nodes
+  - job_name: 'kubernetes-nodes'
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: '(.*):10250'
+        replacement: '${1}:9100'
+        target_label: __address__
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+
+  # Инфраструктурный уровень: Kubernetes pods
+  - job_name: 'kubernetes-pods'
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: kubernetes_namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: kubernetes_pod_name
+
+  # Уровень приложения: Flink JobManager
+  - job_name: 'flink-jobmanager'
+    static_configs:
+      - targets: ['flink-jobmanager:9250']
+        labels:
+          component: 'flink'
+          role: 'jobmanager'
+    scrape_interval: 10s
+    metrics_path: /metrics
+
+  # Уровень приложения: Flink TaskManager
+  - job_name: 'flink-taskmanager'
+    static_configs:
+      - targets: ['flink-taskmanager:9250']
+        labels:
+          component: 'flink'
+          role: 'taskmanager'
+    scrape_interval: 10s
+    metrics_path: /metrics
+
+  # Уровень приложения: Model Server
+  - job_name: 'model-server'
+    static_configs:
+      - targets: ['model-server:8000']
+        labels:
+          component: 'model-server'
+    metrics_path: /metrics
+    scrape_interval: 15s
+
+  # Уровень приложения: Redis
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+        labels:
+          component: 'redis'
+    scrape_interval: 15s
+
+  # Уровень приложения: Kafka
+  - job_name: 'kafka'
+    static_configs:
+      - targets: ['kafka:9092']
+        labels:
+          component: 'kafka'
+    scrape_interval: 15s
+
+  # Уровень данных: Data Drift Monitor (через Pushgateway)
+  - job_name: 'data-drift'
+    static_configs:
+      - targets: ['pushgateway:9091']
+        labels:
+          component: 'data-quality'
+    scrape_interval: 30s
+    honor_labels: true
+
+  # Node Exporter для инфраструктурных метрик (если используется)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          component: 'infrastructure'
+    scrape_interval: 15s
+

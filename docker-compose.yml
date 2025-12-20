@@ -105,6 +105,10 @@ services:
         python.client.executable: /usr/bin/python3
         python.executable: /usr/bin/python3
         parallelism.default: 8
+        metrics.reporters: prom
+        metrics.reporter.prom.class: org.apache.flink.metrics.prometheus.PrometheusReporter
+        metrics.reporter.prom.port: 9250
+        metrics.reporter.prom.host: 0.0.0.0
     volumes:
       - flink-checkpoints:/opt/flink/checkpoints
       - flink-savepoints:/opt/flink/savepoints
@@ -145,6 +149,10 @@ services:
         state.checkpoints.dir: file:///opt/flink/checkpoints
         python.client.executable: /usr/bin/python3
         python.executable: /usr/bin/python3
+        metrics.reporters: prom
+        metrics.reporter.prom.class: org.apache.flink.metrics.prometheus.PrometheusReporter
+        metrics.reporter.prom.port: 9250
+        metrics.reporter.prom.host: 0.0.0.0
     volumes:
       - flink-checkpoints:/opt/flink/checkpoints
       - flink-taskmanager-state:/opt/flink/state
@@ -200,6 +208,116 @@ services:
       retries: 3
       start_period: 60s
 
+  pushgateway:
+    image: prom/pushgateway:latest
+    container_name: pushgateway
+    ports:
+      - "9091:9091"
+    command:
+      - '--persistence.file=/tmp/pushgateway.db'
+    networks:
+      - bigdata-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/alerts.yml:/etc/prometheus/rules/alerts.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    networks:
+      - bigdata-network
+    depends_on:
+      - pushgateway
+      - flink-jobmanager
+      - flink-taskmanager
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4G
+        reservations:
+          cpus: "1"
+          memory: 2G
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+    volumes:
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
+    networks:
+      - bigdata-network
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    restart: unless-stopped
+
+  load-generator:
+    build:
+      context: .
+      dockerfile: load-generator/Dockerfile
+    container_name: load-generator
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:19092
+      - KAFKA_TOPIC=transactions
+      - EVENTS_PER_SECOND=1000
+      - MODEL_SERVER_URL=http://model-server:8000/predict
+      - PROMETHEUS_GATEWAY=pushgateway:9091
+    networks:
+      - bigdata-network
+    depends_on:
+      kafka:
+        condition: service_started
+      model-server:
+        condition: service_started
+      pushgateway:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+    restart: unless-stopped
+
 networks:
   bigdata-network:
     driver: bridge
@@ -212,5 +330,9 @@ volumes:
   flink-savepoints:
     driver: local
   flink-taskmanager-state:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
     driver: local
 

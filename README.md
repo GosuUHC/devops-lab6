@@ -83,3 +83,12 @@ python scripts/check_part3.py
 - CPU: 113m
 - RAM: 1008Mi
 
+## Grafana с нагрузкой от load-generator
+
+![](/assets/grafana.JPG)
+
+### Настроенные алерты:
+
+![](/assets/alerts_1.JPG)
+
+![](/assets/alerts_2.JPG)
